@@ -433,75 +433,56 @@
     // ═══════════════════════════════════
     function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
-function viewportRect() {
-  // Mobile-friendly: accounts for iOS Safari’s dynamic viewport via visualViewport
-  const vv = window.visualViewport;
-  if (vv) return { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height };
-  return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-}
+    function viewportRect() {
+      const vv = window.visualViewport;
+      if (vv) return { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height };
+      return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    }
 
-function clampRectToViewport(r) {
-  const v = viewportRect();
-  const left   = clamp(r.left, v.left, v.left + v.width - r.width);
-  const top    = clamp(r.top,  v.top,  v.top  + v.height - r.height);
-  return { left, top, width: r.width, height: r.height };
-}
+    function clampRectToViewport(r) {
+      const v = viewportRect();
+      const left   = clamp(r.left, v.left, v.left + v.width - r.width);
+      const top    = clamp(r.top,  v.top,  v.top  + v.height - r.height);
+      return { left, top, width: r.width, height: r.height };
+    }
 
-function viewportRect() {
-  // Mobile-friendly: accounts for iOS Safari’s dynamic viewport via visualViewport
-  const vv = window.visualViewport;
-  if (vv) return { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height };
-  return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-}
+    function getMovementRegion() {
+      const v = viewportRect();
+      const cr = card.getBoundingClientRect();
 
-function clampRectToViewport(r) {
-  const v = viewportRect();
-  const left   = clamp(r.left, v.left, v.left + v.width - r.width);
-  const top    = clamp(r.top,  v.top,  v.top  + v.height - r.height);
-  return { left, top, width: r.width, height: r.height };
-}
+      const padX = Math.min(140, v.width * 0.20);
+      const padY = Math.min(160, v.height * 0.22);
 
-  function getMovementRegion() {
-    // Region centered around the card (so it stays near the prompt)
-    const v = viewportRect();
-    const cr = card.getBoundingClientRect();
+      let region = {
+        left: cr.left - padX,
+        top:  cr.top  - padY,
+        width:  cr.width  + padX * 2,
+        height: cr.height + padY * 2
+      };
 
-    // Expand around the card; tweak these for tighter/looser movement
-    const padX = Math.min(140, v.width * 0.20);
-    const padY = Math.min(160, v.height * 0.22);
+      region.left = Math.max(v.left, region.left);
+      region.top  = Math.max(v.top,  region.top);
 
-    let region = {
-      left: cr.left - padX,
-      top:  cr.top  - padY,
-      width:  cr.width  + padX * 2,
-      height: cr.height + padY * 2
-    };
+      region.width  = Math.min(region.width,  v.left + v.width  - region.left);
+      region.height = Math.min(region.height, v.top  + v.height - region.top);
 
-    // Clamp region to viewport
-    region.left = Math.max(v.left, region.left);
-    region.top  = Math.max(v.top,  region.top);
+      region.width  = Math.max(region.width,  Math.min(320, v.width  - 16));
+      region.height = Math.max(region.height, Math.min(280, v.height - 16));
 
-    region.width  = Math.min(region.width,  v.left + v.width  - region.left);
-    region.height = Math.min(region.height, v.top  + v.height - region.top);
+      return region;
+    }
 
-    // Ensure minimum usable size
-    region.width  = Math.max(region.width,  Math.min(320, v.width  - 16));
-    region.height = Math.max(region.height, Math.min(280, v.height - 16));
+    function randomPosInRegion(el, region, pad = 16) {
+      const rect = el.getBoundingClientRect();
 
-    return region;
-  }
+      const maxX = Math.max(0, region.width  - rect.width  - pad * 2);
+      const maxY = Math.max(0, region.height - rect.height - pad * 2);
 
-  function randomPosInRegion(el, region, pad = 16) {
-    const rect = el.getBoundingClientRect();
-
-    const maxX = Math.max(0, region.width  - rect.width  - pad * 2);
-    const maxY = Math.max(0, region.height - rect.height - pad * 2);
-
-    return {
-      x: region.left + pad + Math.random() * maxX,
-      y: region.top  + pad + Math.random() * maxY
-    };
-  }
+      return {
+        x: region.left + pad + Math.random() * maxX,
+        y: region.top  + pad + Math.random() * maxY
+      };
+    }
 
 
     // ═══════════════════════════════════
@@ -533,13 +514,14 @@ function clampRectToViewport(r) {
     ];
 
     function spawnYesButtons(count = 3) {
+      const region = getMovementRegion();
       for (let i = 0; i < count; i++) {
         const b = document.createElement('button');
         b.className = 'floating-yes';
         b.textContent = ['Yes 💘','Yes! 🥰','Yep 💕','Yes pls 💗','Absolutely 💞'][Math.floor(Math.random() * 5)];
         b.type = 'button';
         document.body.appendChild(b);
-        const { x, y } = randomPosInRegion(b, 28);
+        const { x, y } = randomPosInRegion(b, region);
         b.style.left = x + 'px';
         b.style.top = y + 'px';
         b.addEventListener('click', acceptYes);
@@ -562,19 +544,17 @@ function clampRectToViewport(r) {
       noBtn.style.zIndex = '50';
 
       if (!noMoved) {
-        // FIRST MOVE: land near the card center (not bottom-right)
+        // FIRST MOVE: land near the card center
         const cr = card.getBoundingClientRect();
         const centerX = cr.left + cr.width / 2;
         const centerY = cr.top  + cr.height / 2;
 
-        // Small random offset around center (tight cluster)
         const radiusX = Math.min(90, v.width * 0.12);
         const radiusY = Math.min(90, v.height * 0.12);
 
         let x = centerX + (Math.random() - 0.5) * 2 * radiusX - rect.width / 2;
         let y = centerY + (Math.random() - 0.5) * 2 * radiusY - rect.height / 2;
 
-        // Clamp to region + viewport so it cannot go out of bounds
         x = clamp(x, region.left, region.left + region.width - rect.width);
         y = clamp(y, region.top,  region.top  + region.height - rect.height);
 
@@ -643,9 +623,7 @@ function clampRectToViewport(r) {
       if (accepted) return;
       // Prevent iOS from interpreting as scroll/zoom gesture
       e.preventDefault();
-      moveNoButton();
-      showNoTooltip();
-    });   
+    });
     noBtn.addEventListener('click', handleNo);
 
     // ═══════════════════════════════════
